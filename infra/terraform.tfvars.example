@@ -1,0 +1,2 @@
+# Copiá a terraform.tfvars y completá.
+aws_profile = "default"

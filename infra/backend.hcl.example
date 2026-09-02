@@ -1,0 +1,5 @@
+# Copiá a backend.hcl y completá con los datos de tu cuenta.
+#   terraform init -backend-config=backend.hcl
+bucket  = "tf-state-<TU_ACCOUNT_ID>"
+region  = "us-east-1"
+profile = "default"
