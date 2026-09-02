@@ -31,7 +31,10 @@ Terraform · AWS (S3, VPC, EKS, IAM) · GitHub Actions · tfsec/checkov · tflin
 
 ## Architecture
 
-> 🚧 Architecture diagram pending (M9). For now, only the state backend exists.
+Network diagram (M1 — VPC, public/private subnets, IGW, NAT): [`docs/diagrams/m1-network-architecture.drawio`](docs/diagrams/m1-network-architecture.drawio).
+Open it at [diagrams.net](https://app.diagrams.net) or with the [Draw.io Integration VS Code extension](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio).
+
+> 🚧 Full architecture diagram (EKS, IAM) pending as later milestones land (M9).
 
 Terraform state is stored remotely and durably in **S3**, with **native S3 locking**
 (`use_lockfile`) to prevent concurrent applies. DynamoDB is not used: since S3 supports
@@ -48,6 +51,15 @@ corresponding ADR once documented in M9).
 │   ├── outputs.tf
 │   ├── backend.hcl.example
 │   └── terraform.tfvars.example
+├── infra/                # Network + (later) EKS/IAM stack. Own state, own lifecycle.
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── backend.hcl.example
+│   └── terraform.tfvars.example
+├── docs/
+│   └── diagrams/
+│       └── m1-network-architecture.drawio
 └── README.md
 ```
 
