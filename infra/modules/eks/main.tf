@@ -1,6 +1,73 @@
-# --- Bastion host: única forma de administrar el cluster ahora que el
-#     endpoint de EKS es privado. Sin SSH ni puertos de entrada — acceso
-#     vía SSM Session Manager (IAM + auditado en CloudTrail, sin llaves). ---
+
+resource "aws_eks_cluster" "main" {
+  name     = "secure-eks-cluster"
+  role_arn = var.cluster_role_arn
+
+  version = "1.31"
+
+  vpc_config {
+    subnet_ids = concat(var.public_subnet_ids, var.private_subnet_ids)
+
+    endpoint_public_access  = false
+    endpoint_private_access = true
+  }
+}
+
+resource "aws_eks_node_group" "main" {
+  cluster_name  = aws_eks_cluster.main.name
+  node_role_arn = var.node_role_arn
+
+  subnet_ids = var.private_subnet_ids
+
+  capacity_type  = "SPOT"
+  instance_types = ["t3.medium"]
+
+  scaling_config {
+    desired_size = 1
+    max_size     = 2
+    min_size     = 1
+  }
+}
+
+
+data "tls_certificate" "eks" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "eks" {
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+}
+
+locals {
+  oidc_provider = replace(aws_iam_openid_connect_provider.eks.url, "https://", "")
+}
+
+resource "aws_iam_role" "cni_irsa" {
+  name = "secure-eks-cni-irsa-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Federated = aws_iam_openid_connect_provider.eks.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${local.oidc_provider}:sub" = "system:serviceaccount:kube-system:aws-node"
+          "${local.oidc_provider}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "eks_node_cni_irsa_policy" {
+  role       = aws_iam_role.cni_irsa.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+}
+
 
 data "aws_ami" "al2023" {
   most_recent = true
@@ -15,7 +82,7 @@ data "aws_ami" "al2023" {
 resource "aws_security_group" "bastion" {
   name        = "secure-eks-bastion-sg"
   description = "Bastion EKS - sin reglas de entrada, solo SSM"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = var.vpc_id
 
   egress {
     from_port   = 0
@@ -29,9 +96,6 @@ resource "aws_security_group" "bastion" {
   }
 }
 
-# El SG que EKS crea automáticamente para el control plane solo deja
-# pasar tráfico de los nodos. Sin esta regla, el bastion no puede llegar
-# al endpoint privado del API aunque esté en la misma VPC.
 resource "aws_security_group_rule" "eks_api_from_bastion" {
   type                     = "ingress"
   from_port                = 443
@@ -54,17 +118,11 @@ resource "aws_iam_role" "bastion" {
   })
 }
 
-# Permiso gestionado estándar para que el agente SSM funcione.
 resource "aws_iam_role_policy_attachment" "bastion_ssm" {
   role       = aws_iam_role.bastion.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-# Permiso mínimo extra (no viene en ninguna policy gestionada): poder
-# describir ESTE cluster puntual para generar el kubeconfig localmente.
-# El acceso real a los objetos de Kubernetes lo sigue controlando el RBAC
-# del cluster (EKS access entries / aws-auth) — eso es un paso aparte,
-# pendiente para cuando el cluster exista de verdad.
 resource "aws_iam_role_policy" "bastion_eks_describe" {
   name = "eks-describe-cluster"
   role = aws_iam_role.bastion.id
@@ -88,7 +146,7 @@ resource "aws_instance" "bastion" {
   ami           = data.aws_ami.al2023.id
   instance_type = "t3.micro"
 
-  subnet_id              = aws_subnet.private_a.id
+  subnet_id              = var.private_subnet_ids[0]
   vpc_security_group_ids = [aws_security_group.bastion.id]
   iam_instance_profile   = aws_iam_instance_profile.bastion.name
 
@@ -97,7 +155,6 @@ resource "aws_instance" "bastion" {
     http_endpoint = "enabled"
   }
 
-  # Sin key_name a propósito: nada de SSH, solo SSM Session Manager.
 
   user_data = <<-EOF
     #!/bin/bash

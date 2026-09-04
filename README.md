@@ -17,7 +17,7 @@ Each milestone is integrated via **Pull Request** (branch → PR → review → 
 - [x] **M1** — Network: VPC with public/private subnets across 2+ AZs, NAT gateway
 - [x] **M2** — Least-privilege baseline IAM
 - [x] **M3** — EKS cluster + IRSA
-- [ ] **M4** — Modularization (`network/`, `eks/`, `iam/`)
+- [x] **M4** — Modularization (`network/`, `eks/`, `iam/`)
 - [ ] **M5** — Infra testing (`validate`, `tflint`, Terratest)
 - [ ] **M6** — Security: tfsec/checkov in the pipeline
 - [ ] **M7** — Delivery pipeline (plan on PR, apply on merge with manual approval)
@@ -46,11 +46,29 @@ corresponding ADR once documented in M9).
 exposes the API endpoint to the public internet (network-reachable by anyone, though
 still gated by IAM + RBAC auth) — closing it entirely means the API surface can't be
 touched from outside the VPC at all, not even to attempt authentication. The trade-off:
-the cluster can only be administered from inside the VPC, so a **bastion host** (planned,
-not yet built) is required to run `kubectl`/`aws` from a laptop. Considered and rejected:
-leaving the public endpoint open and restricting it to a single IP via
-`public_access_cidrs` — simpler (no bastion needed), but still network-reachable from the
-internet in principle, just IP-filtered at the AWS API layer.
+the cluster can only be administered from inside the VPC, so a **bastion host** is
+required to run `kubectl`/`aws` from a laptop. Considered and rejected: leaving the
+public endpoint open and restricting it to a single IP via `public_access_cidrs` —
+simpler (no bastion needed), but still network-reachable from the internet in
+principle, just IP-filtered at the AWS API layer.
+
+**Bastion host (M3):** lives in a **private** subnet with no public IP and a security
+group with zero inbound rules — access is exclusively via **SSM Session Manager**
+(IAM-authenticated, no SSH keys, sessions audited in CloudTrail), not traditional
+SSH. Neither the bastion nor the administrator dials in directly to each other;
+both independently connect outbound to the AWS Systems Manager service, which brokers
+the interactive session — that's why no inbound port or public IP is needed at all.
+
+**Modularization (M4):** the code is split into reusable modules
+(`modules/network`, `modules/iam`, `modules/eks`) with clean variables/outputs, but
+**deliberately kept on a single Terraform state** — module boundaries here are about
+code organization and reuse, not blast-radius isolation. A `module` block sharing the
+root's state is a different mechanism from separate state files per stack; this
+project accepts the shared-state trade-off
+(an `apply` touching `eks` can, in principle, still affect `network`/`iam` in the same
+operation) in exchange for less operational overhead — one `init`/`plan`/`apply`
+instead of three separate stacks wired together via `terraform_remote_state`. Revisit
+if this ever needs independent CI pipelines per stack.
 
 ## Repository layout
 
@@ -62,12 +80,17 @@ internet in principle, just IP-filtered at the AWS API layer.
 │   ├── outputs.tf
 │   ├── backend.hcl.example
 │   └── terraform.tfvars.example
-├── infra/                # Network + (later) EKS/IAM stack. Own state, own lifecycle.
-│   ├── main.tf
+├── infra/                # Network + EKS/IAM stack. Own state, own lifecycle.
+│   ├── main.tf           # terraform{}/provider{} only
+│   ├── modules.tf        # wires network/iam/eks modules together
 │   ├── variables.tf
 │   ├── outputs.tf
 │   ├── backend.hcl.example
-│   └── terraform.tfvars.example
+│   ├── terraform.tfvars.example
+│   └── modules/
+│       ├── network/  # VPC, subnets, IGW, NAT, route tables
+│       ├── iam/      # EKS cluster role + node role
+│       └── eks/      # cluster, node group, IRSA, bastion
 ├── docs/
 │   └── diagrams/
 │       └── m1-network-architecture.drawio
@@ -98,6 +121,6 @@ terraform apply
 
 ## Why Terraform and this approach
 
-A practical application of Kief Morris's *Infrastructure as Code*: small, composable
-stacks, infrastructure testing, delivery pipelines (no manual applies), secrets
-management, and drift handling. The reasoning behind each decision is captured in the ADRs.
+Small, composable stacks, infrastructure testing, delivery pipelines (no manual
+applies), secrets management, and drift handling. The reasoning behind each decision
+is captured in the ADRs.

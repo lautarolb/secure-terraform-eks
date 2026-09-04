@@ -1,20 +1,16 @@
-# Outputs del stack de red. Los vamos a usar cuando llegue EKS (necesita
-# el vpc_id y las subnets donde correr los nodos).
-
 output "vpc_id" {
-   value =  aws_vpc.main.id
+  value = module.network.vpc_id
 }
 
 output "private_subnet_ids" {
-   value = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+  value = module.network.private_subnet_ids
 }
 
 output "public_subnet_ids" {
-   value = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+  value = module.network.public_subnet_ids
 }
 
 output "bastion_instance_id" {
   description = "Para conectarse: aws ssm start-session --target <id> --profile personal"
-  value       = aws_instance.bastion.id
+  value = module.eks.bastion_instance_id
 }
-
