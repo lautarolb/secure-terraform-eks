@@ -18,7 +18,7 @@ Each milestone is integrated via **Pull Request** (branch → PR → review → 
 - [x] **M2** — Least-privilege baseline IAM
 - [x] **M3** — EKS cluster + IRSA
 - [x] **M4** — Modularization (`network/`, `eks/`, `iam/`)
-- [ ] **M5** — Infra testing (`validate`, `tflint`, Terratest)
+- [x] **M5** — Infra testing (`validate`, `tflint`, Terratest)
 - [ ] **M6** — Security: tfsec/checkov in the pipeline
 - [ ] **M7** — Delivery pipeline (plan on PR, apply on merge with manual approval)
 - [ ] **M8** — Secrets management (Secrets Manager / SSM)
@@ -115,6 +115,11 @@ terraform init -backend-config=backend.hcl
 terraform plan
 terraform apply
 ```
+
+**Linting (M5):** [`tflint`](https://github.com/terraform-linters/tflint) runs against every
+stack from the repo root with `tflint --recursive` (config in `.tflint.hcl`). Currently local
+only — wiring it into CI is part of M7 (delivery pipeline). Terratest (optional per the
+milestone) was skipped for this project's scope.
 
 > The backend uses *partial configuration*: the code (`.tf`) is generic and public, while
 > account-specific data lives in `backend.hcl` / `terraform.tfvars`, which are gitignored.
