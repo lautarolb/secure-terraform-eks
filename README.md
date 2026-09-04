@@ -117,9 +117,31 @@ terraform apply
 ```
 
 **Linting (M5):** [`tflint`](https://github.com/terraform-linters/tflint) runs against every
-stack from the repo root with `tflint --recursive` (config in `.tflint.hcl`). Currently local
-only — wiring it into CI is part of M7 (delivery pipeline). Terratest (optional per the
-milestone) was skipped for this project's scope.
+stack from the repo root with `tflint --recursive` (config in `.tflint.hcl`). Wiring it into
+CI is part of M7 (delivery pipeline).
+
+**Pre-commit hook (M5):** `hooks/pre-commit` runs `terraform fmt -check` and `tflint
+--recursive` before every commit — a plain git hook (no extra dependency, no `pre-commit`
+framework needed for two checks). Git doesn't version `.git/hooks/`, so install it once per
+clone:
+
+```bash
+ln -sf ../../hooks/pre-commit .git/hooks/pre-commit
+```
+
+**Terratest (M5):** `test/network_test.go` is a **plan-only** sanity test for the `network`
+module — it runs `terraform init`/`plan` (via Terratest) and asserts on the planned VPC/subnet
+CIDRs and the NAT gateway, but never applies, so it costs nothing and is safe to run any time:
+
+```bash
+cd test
+go test -v ./...
+```
+
+A full Terratest suite would normally `apply` real infrastructure and assert against it (then
+`destroy`) — deliberately not done here for `eks`/`iam`, since an EKS apply/destroy cycle
+costs money and takes 15–20 minutes; this repo prefers to keep real applies manual and
+explicit rather than have `go test` spend money silently.
 
 > The backend uses *partial configuration*: the code (`.tf`) is generic and public, while
 > account-specific data lives in `backend.hcl` / `terraform.tfvars`, which are gitignored.

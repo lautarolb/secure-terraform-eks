@@ -12,5 +12,5 @@ output "public_subnet_ids" {
 
 output "bastion_instance_id" {
   description = "Para conectarse: aws ssm start-session --target <id> --profile personal"
-  value = module.eks.bastion_instance_id
+  value       = module.eks.bastion_instance_id
 }

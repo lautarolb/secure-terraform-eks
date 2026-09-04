@@ -17,6 +17,9 @@
 backend.hcl
 !backend.hcl.example
 
+# --- Archivos de plan guardados (los genera terraform plan -out, y el Terratest de M5) ---
+*.tfplan
+
 # --- Logs de crash ---
 crash.log
 crash.*.log

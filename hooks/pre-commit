@@ -1,0 +1,12 @@
+#!/bin/sh
+# Corre antes de cada commit: terraform fmt (check) + tflint.
+# Instalación (una vez por clon del repo):
+#   ln -sf ../../hooks/pre-commit .git/hooks/pre-commit
+
+set -e
+
+echo "==> terraform fmt -check"
+terraform fmt -check -recursive .
+
+echo "==> tflint --recursive"
+tflint --recursive
