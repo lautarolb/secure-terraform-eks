@@ -14,9 +14,9 @@ Each milestone is integrated via **Pull Request** (branch → PR → review → 
 
 - [x] **M-S** — Personal AWS account (MFA, non-root admin, CLI profile, budget alert)
 - [x] **M0** — Remote state: S3 backend with native S3 locking (`use_lockfile`)
-- [ ] **M1** — Network: VPC with public/private subnets across 2+ AZs, NAT gateway
-- [ ] **M2** — Least-privilege baseline IAM
-- [ ] **M3** — EKS cluster + IRSA
+- [x] **M1** — Network: VPC with public/private subnets across 2+ AZs, NAT gateway
+- [x] **M2** — Least-privilege baseline IAM
+- [x] **M3** — EKS cluster + IRSA
 - [ ] **M4** — Modularization (`network/`, `eks/`, `iam/`)
 - [ ] **M5** — Infra testing (`validate`, `tflint`, Terratest)
 - [ ] **M6** — Security: tfsec/checkov in the pipeline
@@ -40,6 +40,17 @@ Terraform state is stored remotely and durably in **S3**, with **native S3 locki
 (`use_lockfile`) to prevent concurrent applies. DynamoDB is not used: since S3 supports
 conditional writes, locking is handled by a `.tflock` object in the bucket itself (see the
 corresponding ADR once documented in M9).
+
+**EKS API endpoint (M3):** the cluster's Kubernetes API endpoint is **private-only**
+(`endpoint_public_access = false`, `endpoint_private_access = true`). By default EKS
+exposes the API endpoint to the public internet (network-reachable by anyone, though
+still gated by IAM + RBAC auth) — closing it entirely means the API surface can't be
+touched from outside the VPC at all, not even to attempt authentication. The trade-off:
+the cluster can only be administered from inside the VPC, so a **bastion host** (planned,
+not yet built) is required to run `kubectl`/`aws` from a laptop. Considered and rejected:
+leaving the public endpoint open and restricting it to a single IP via
+`public_access_cidrs` — simpler (no bastion needed), but still network-reachable from the
+internet in principle, just IP-filtered at the AWS API layer.
 
 ## Repository layout
 

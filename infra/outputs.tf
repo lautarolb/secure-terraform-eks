@@ -13,3 +13,8 @@ output "public_subnet_ids" {
    value = [aws_subnet.public_a.id, aws_subnet.public_b.id]
 }
 
+output "bastion_instance_id" {
+  description = "Para conectarse: aws ssm start-session --target <id> --profile personal"
+  value       = aws_instance.bastion.id
+}
+
