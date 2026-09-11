@@ -40,6 +40,8 @@ resource "aws_subnet" "private_b" {
   }
 }
 
+#tfsec:ignore:aws-ec2-no-public-ip-subnet
+#checkov:skip=CKV_AWS_130:subnet publica a proposito, ahi vive el NAT (ver ADR 0003)
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.32.0/24"
@@ -51,6 +53,8 @@ resource "aws_subnet" "public_a" {
   }
 }
 
+#tfsec:ignore:aws-ec2-no-public-ip-subnet
+#checkov:skip=CKV_AWS_130:subnet publica a proposito, ahi vive el NAT (ver ADR 0003)
 resource "aws_subnet" "public_b" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.33.0/24"
@@ -138,4 +142,52 @@ resource "aws_route_table_association" "private_a" {
 resource "aws_route_table_association" "private_b" {
   subnet_id      = aws_subnet.private_b.id
   route_table_id = aws_route_table.private.id
+}
+
+# --- VPC Flow Logs ---
+
+resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+  name              = "/vpc/secure-eks/flow-logs"
+  retention_in_days = 14
+}
+
+resource "aws_iam_role" "vpc_flow_logs" {
+  name = "secure-eks-vpc-flow-logs-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "vpc-flow-logs.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "vpc_flow_logs" {
+  name = "secure-eks-vpc-flow-logs-policy"
+  role = aws_iam_role.vpc_flow_logs.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+      ]
+      Resource = "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
+    }]
+  })
+}
+
+resource "aws_flow_log" "main" {
+  vpc_id               = aws_vpc.main.id
+  traffic_type         = "ALL"
+  log_destination_type = "cloud-watch-logs"
+  log_destination      = aws_cloudwatch_log_group.vpc_flow_logs.arn
+  iam_role_arn         = aws_iam_role.vpc_flow_logs.arn
 }

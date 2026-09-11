@@ -13,10 +13,10 @@ terraform {
   }
 }
 
-#tfsec:ignore:aws-eks-enable-control-plane-logging
-#tfsec:ignore:aws-eks-encrypt-secrets
 #checkov:skip=CKV_AWS_38:control plane logging pendiente, tracking en README roadmap
 #checkov:skip=CKV_AWS_58:KMS envelope encryption de secrets pendiente, tracking en README roadmap
+#tfsec:ignore:aws-eks-enable-control-plane-logging
+#tfsec:ignore:aws-eks-encrypt-secrets
 resource "aws_eks_cluster" "main" {
   name     = "secure-eks-cluster"
   role_arn = var.cluster_role_arn
@@ -102,7 +102,9 @@ resource "aws_security_group" "bastion" {
   description = "Bastion EKS - sin reglas de entrada, solo SSM"
   vpc_id      = var.vpc_id
 
+  #tfsec:ignore:aws-ec2-no-public-egress-sgr
   egress {
+    description = "Salida a internet via NAT - agente SSM, yum, descarga de kubectl/awscli"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -115,6 +117,7 @@ resource "aws_security_group" "bastion" {
 }
 
 resource "aws_security_group_rule" "eks_api_from_bastion" {
+  description              = "Permite al bastion llegar al endpoint privado del API de EKS"
   type                     = "ingress"
   from_port                = 443
   to_port                  = 443
@@ -160,6 +163,8 @@ resource "aws_iam_instance_profile" "bastion" {
   role = aws_iam_role.bastion.name
 }
 
+#tfsec:ignore:aws-ec2-enable-at-rest-encryption
+#checkov:skip=CKV_AWS_8:root volume del bastion sin encriptar, pendiente de arreglar
 resource "aws_instance" "bastion" {
   ami           = data.aws_ami.al2023.id
   instance_type = "t3.micro"

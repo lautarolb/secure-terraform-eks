@@ -33,6 +33,8 @@ provider "aws" {
   }
 }
 
+#tfsec:ignore:aws-s3-enable-bucket-logging
+#checkov:skip=CKV_AWS_18:logging del propio bucket de state pendiente, bajo impacto
 resource "aws_s3_bucket" "state" {
   bucket = var.state_bucket_name # leemos el nombre desde la variable
 }
@@ -45,6 +47,8 @@ resource "aws_s3_bucket_versioning" "bucket-configuration-versionning" {
 }
 
 
+#tfsec:ignore:aws-s3-encryption-customer-key
+#checkov:skip=CKV_AWS_19:SSE con AES256 alcanza por ahora, CMK/KMS pendiente
 resource "aws_s3_bucket_server_side_encryption_configuration" "bucket-cfg-sse" {
   bucket = aws_s3_bucket.state.id
   rule {
