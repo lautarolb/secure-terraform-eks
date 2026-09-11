@@ -13,9 +13,6 @@ terraform {
   }
 }
 
-# Deuda conocida, pendiente de arreglar (no bloquear CI mientras tanto):
-#   - control plane logging (audit logs a CloudWatch) sin habilitar
-#   - secrets de Kubernetes sin encryption adicional vía KMS (queda solo el default de EKS)
 #tfsec:ignore:aws-eks-enable-control-plane-logging
 #tfsec:ignore:aws-eks-encrypt-secrets
 #checkov:skip=CKV_AWS_38:control plane logging pendiente, tracking en README roadmap

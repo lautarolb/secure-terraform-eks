@@ -8,6 +8,12 @@ module "iam" {
   source = "./modules/iam"
 }
 
+module "github_oidc" {
+  source = "./modules/github-oidc"
+
+  state_bucket = var.state_bucket
+}
+
 module "eks" {
   source = "./modules/eks"
 
