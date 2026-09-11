@@ -33,7 +33,7 @@ jobs:
           framework: terraform
 
   plan:
-    name: terraform plan
+    name: terraform plan (M7)
     runs-on: ubuntu-latest
     needs: [validate, security]
     permissions:
