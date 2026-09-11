@@ -19,7 +19,7 @@ Each milestone is integrated via **Pull Request** (branch → PR → review → 
 - [x] **M3** — EKS cluster + IRSA
 - [x] **M4** — Modularization (`network/`, `eks/`, `iam/`)
 - [x] **M5** — Infra testing (`validate`, `tflint`, Terratest)
-- [ ] **M6** — Security: tfsec/checkov in the pipeline
+- [x] **M6** — Security: tfsec/checkov in the pipeline
 - [ ] **M7** — Delivery pipeline (plan on PR, apply on merge with manual approval)
 - [ ] **M8** — Secrets management (Secrets Manager / SSM)
 - [ ] **M9** — Documentation (architecture diagram + ADRs)
@@ -35,6 +35,13 @@ Network diagram (M1 — VPC, public/private subnets, IGW, NAT): [`docs/diagrams/
 Open it at [diagrams.net](https://app.diagrams.net) or with the [Draw.io Integration VS Code extension](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio).
 
 > 🚧 Full architecture diagram (EKS, IAM) pending as later milestones land (M9).
+
+**ADRs** (`docs/adr/`):
+- [0001 — CI/CD pipeline design](docs/adr/0001-cicd-pipeline-design.md) (proposed, not yet built)
+- [0002 — Remote state backend](docs/adr/0002-remote-state-backend.md)
+- [0003 — Network design](docs/adr/0003-network-design.md)
+- [0004 — EKS access design](docs/adr/0004-eks-access-design.md)
+- [0005 — Single state despite modularization](docs/adr/0005-single-state-modularization.md)
 
 Terraform state is stored remotely and durably in **S3**, with **native S3 locking**
 (`use_lockfile`) to prevent concurrent applies. DynamoDB is not used: since S3 supports
@@ -142,6 +149,15 @@ A full Terratest suite would normally `apply` real infrastructure and assert aga
 `destroy`) — deliberately not done here for `eks`/`iam`, since an EKS apply/destroy cycle
 costs money and takes 15–20 minutes; this repo prefers to keep real applies manual and
 explicit rather than have `go test` spend money silently.
+
+**Security scanning (M6):** [`tfsec`](https://github.com/aquasecurity/tfsec) and
+[`checkov`](https://www.checkov.io/) run **only in CI** (`.github/workflows/ci.yml`, on every
+PR) — not locally/pre-commit like `tflint`, since checkov in particular pulls a heavy Python
+dependency tree that isn't worth the local dev-environment cost. Any *new* misconfiguration
+fails the PR. Two known, accepted findings on the EKS cluster (control plane logging, KMS
+secrets encryption — both still pending) are silenced with scoped inline
+`#tfsec:ignore:`/`#checkov:skip=` comments, not a blanket `--soft-fail`, so the check keeps
+its teeth for anything introduced afterwards.
 
 > The backend uses *partial configuration*: the code (`.tf`) is generic and public, while
 > account-specific data lives in `backend.hcl` / `terraform.tfvars`, which are gitignored.

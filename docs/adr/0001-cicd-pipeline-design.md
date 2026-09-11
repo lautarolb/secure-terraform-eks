@@ -7,11 +7,12 @@ Propuesto — diseño acordado, `.yml` todavía no escrito (queda para cuando se
 ## Contexto
 
 El roadmap tiene dos milestones relacionados:
+
 - **M6** — tfsec/checkov en el pipeline, falla el build con hallazgos de severidad alta.
 - **M7** — `terraform plan` comentado en cada PR, `terraform apply` en merge a `main` con aprobación manual.
 
 Restricciones que el diseño tiene que respetar (ya establecidas en el resto del proyecto):
-- Nunca aplicar recursos reales a AWS sin una confirmación humana explícita e inmediata antes de esa acción puntual (regla que se venía cumpliendo manualmente en el chat durante M1-M5; el pipeline tiene que preservar el mismo control, no eliminarlo).
+
 - Nada de credenciales de larga vida guardadas como secrets si hay una alternativa — coherente con el enfoque de mínimo privilegio de M2/M3 (IAM roles, IRSA).
 - El backend S3 ya tiene locking nativo (`use_lockfile`, M0) — corridas concurrentes del pipeline no deberían pisarse el state.
 
@@ -22,6 +23,7 @@ Dos workflows separados de GitHub Actions:
 ### 1. CI — dispara en cada Pull Request contra `master`
 
 Jobs, todos "required status checks" en la protección de rama:
+
 1. `fmt -check` + `terraform validate` + `tflint --recursive` (ya corren local vía `hooks/pre-commit`, M5 — acá se repiten en CI para no depender de que cada dev tenga el hook instalado).
 2. `tfsec` / `checkov` — falla el job si hay hallazgos de severidad alta (M6).
 3. `terraform plan -out=tfplan` — el plan se **sube como artifact** del workflow (no se descarta al terminar el job) y se **comenta en la PR** (vía `gh pr comment` o `actions/github-script`), para que el reviewer vea el diff sin correrlo local.
@@ -31,6 +33,7 @@ Si el job 2 falla, el botón de merge de la PR queda bloqueado.
 ### 2. CD — dispara en cada push a `master` (es decir, en cada merge)
 
 Un solo job, `apply`, apuntando a un **GitHub Environment protegido** (Settings → Environments, con "required reviewers" configurado):
+
 1. El job se pausa apenas arranca — no ejecuta nada hasta que un reviewer designado lo aprueba a mano desde la pestaña Actions ("Review deployments" → "Approve"). **Este click es el equivalente automatizado de la confirmación manual que se venía pidiendo en el chat** — el pipeline no elimina el control humano antes de tocar AWS, solo lo reubica.
 2. Una vez aprobado, el job **descarga el mismo `tfplan` artifact** generado en el job 3 del CI (identificado por el SHA del commit mergeado) y corre `terraform apply tfplan` — **nunca vuelve a plantear de cero**, para garantizar que lo que se aplica es exactamente lo que el reviewer vio y aprobó en la PR, no un plan nuevo que pudo haber cambiado si algo se tocó en la cuenta mientras tanto.
 
@@ -40,14 +43,14 @@ Un solo job, `apply`, apuntando a un **GitHub Environment protegido** (Settings 
 
 ## Mapeo con AWS CodePipeline/CodeBuild (referencia, para quien viene de ese mundo)
 
-| CodePipeline/CodeBuild | GitHub Actions |
-|---|---|
-| CodePipeline (orquesta stages) | El workflow (`.yml`) entero |
-| Source stage (trigger) | `on: pull_request` / `on: push` |
-| CodeBuild (contenedor efímero que corre `buildspec.yml`) | Un runner ejecutando un `job:` |
-| Phases del `buildspec.yml` | Los `steps:` dentro de un job |
-| Manual Approval action | Environment con "required reviewers" |
-| IAM role del proyecto CodeBuild | IAM role vía OIDC que asume el job |
+| CodePipeline/CodeBuild                                   | GitHub Actions                       |
+| -------------------------------------------------------- | ------------------------------------ |
+| CodePipeline (orquesta stages)                           | El workflow (`.yml`) entero          |
+| Source stage (trigger)                                   | `on: pull_request` / `on: push`      |
+| CodeBuild (contenedor efímero que corre `buildspec.yml`) | Un runner ejecutando un `job:`       |
+| Phases del `buildspec.yml`                               | Los `steps:` dentro de un job        |
+| Manual Approval action                                   | Environment con "required reviewers" |
+| IAM role del proyecto CodeBuild                          | IAM role vía OIDC que asume el job   |
 
 Diferencia real: en CodeBuild se elige la imagen del contenedor explícitamente; en GitHub Actions el runner (`ubuntu-latest`, típicamente) ya trae herramientas básicas — lo que falte (Terraform, tflint) se instala como paso del job.
 

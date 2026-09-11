@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+    paths:
+      - "**/*.tf"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  validate:
+    name: fmt + tflint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive .
+      - uses: terraform-linters/setup-tflint@v4
+      - run: tflint --recursive
+
+  security:
+    name: tfsec + checkov
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+      - name: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: terraform
