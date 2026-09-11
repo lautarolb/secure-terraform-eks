@@ -1,7 +1,7 @@
 variable "github_repo" {
   description = "Repo de GitHub (owner/name) habilitado a asumir el role de CI via OIDC"
   type        = string
-  default     = "lautarolopez4/secure-terraform-eks"
+  default     = "lautarolb/secure-terraform-eks"
 }
 
 variable "state_bucket" {
